@@ -1,0 +1,224 @@
+#!/bin/sh
+
+NAME='luks-angel'
+
+MOUNTPOINT="/var/lib/$NAME/mnt"
+mkdir -p $MOUNTPOINT
+
+DONE="/var/lib/$NAME/done"
+mkdir -p $DONE
+
+FOREGROUND_PID=$$
+
+
+cleanup() {
+  umount $MOUNTPOINT 2>/dev/null
+}
+
+
+trap cleanup EXIT
+trap cleanup INT
+
+
+log() {
+  echo >&2 "$NAME: $*"
+}
+
+
+fingerprint() {
+  sha1sum | awk '{print substr($1, 0, 8)}' | tr a-z A-Z
+}
+
+
+find_uuid() {
+  for dev in /dev/disk/by-uuid/*
+  do
+    if [ -e $dev ] && [ $dev -ef $1 ]
+    then
+      echo $(basename $dev)
+      return
+    fi
+  done
+}
+
+for_each_key() {
+  for dev in /dev/disk/by-id/usb-*
+  do
+    [ -e $dev ] || continue
+
+    case `find_uuid $dev` in
+             '') continue    ;;
+      ????-????) fstype=vfat ;;
+              *) fstype=ext4 ;;
+    esac
+
+    mount -o ro -t $fstype $dev $MOUNTPOINT
+
+    for key in $MOUNTPOINT/.*luks*key*
+    do
+      [ -e $key ] || continue
+      "$@" $dev $key
+    done
+
+    umount $MOUNTPOINT 2>/dev/null
+  done
+}
+
+
+unlock_with_key() {
+  local dev=$1
+  local key=$2
+
+  local fingerprint=$(fingerprint <$key)
+  local stamp=$DONE/$fingerprint
+
+  if [ -f $stamp ]
+  then
+    return
+  fi
+
+  log "Trying new key with fingerprint $fingerprint found on $dev"
+  touch $stamp
+  cat $key
+  kill $FOREGROUND_PID
+  exit
+}
+
+
+background_search() {
+  while true
+  do
+    for_each_key unlock_with_key
+    sleep 1
+  done
+}
+
+
+keyscript() {
+  log "Looking for USB keys in the background..."
+  background_search &
+  BACKGROUND_PID=$!
+
+  sleep 1
+  read -p "$NAME: Please enter the password for $CRYPTTAB_NAME: " password
+  kill $BACKGROUND_PID 2>/dev/null
+  echo -n $password
+}
+
+
+list_keys() {
+  echo "FINGERPRINT  DEVICE and PATH"
+  echo "-----------  ---------------"
+  for_each_key print_key
+}
+
+
+print_key() {
+  echo "`fingerprint <$2`     $(basename $1)  $2"
+}
+
+
+install() {
+  if [ `whoami` != root ]
+  then
+    log "Must run as root!"
+    exit 2
+  fi
+
+  local rootfs=$(root_filesystem_device)
+  local cursor="$rootfs"
+
+  while [ "$cursor" ]
+  do
+    cursor=$(parent_device $cursor)
+    if is_crypto_luks $cursor
+    then
+      break
+    fi
+  done
+
+  if [ -z "$cursor" ]
+  then
+    log "Unable to find crypto_LUKS parent of $rootfs"
+  fi
+
+  for_each_key install_key /dev/$cursor
+}
+
+root_filesystem_device() {
+  while read device mountpoint _
+  do
+    if [ "$mountpoint" = / ]
+    then
+      echo $device
+      return
+    fi
+  done </proc/mounts
+}
+
+parent_device() {
+  lsblk --list -o PATH,KNAME,PKNAME |
+    while read path kname pkname
+    do
+      if [ $path = $1 ] || [ $kname = $1 ]
+      then
+        echo $pkname
+        return
+      fi
+    done
+}
+
+is_crypto_luks() {
+  [ "$(fstype $1)" = 'crypto_LUKS' ]
+}
+
+fstype() {
+  lsblk --list -o KNAME,FSTYPE |
+    while read kname fstype
+    do
+      if [ "$kname" = "$1" ]
+      then
+        echo $fstype
+        break
+      fi
+    done
+}
+
+
+install_key() {
+  local luks_device=$1
+  local key_device=$2
+  local key_path=$3
+
+  command="cryptsetup luksAddKey $luks_device $key_path"
+
+  echo "$command"
+  $command
+}
+
+
+usage() {
+  cat <<...
+usage: $NAME [options]
+  -l  search for attached keys
+  -i  install attached keys to root device and update initramfs
+  -h  help message
+...
+}
+
+set -e
+
+if [ "$CRYPTTAB_NAME" ]
+then
+  keyscript
+else
+  while getopts 'lih' opt
+  do
+    case $opt in
+      l) list_keys;;
+      i) install;;
+      h) usage;;
+      *) usage;;
+    esac
+  done
+fi
