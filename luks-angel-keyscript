@@ -26,7 +26,7 @@ log() {
 
 
 fingerprint() {
-  sha1sum | awk '{print substr($1, 0, 8)}' | tr a-z A-Z
+  sha1sum | awk '{print substr($1, 0, 8)}' | tr a-f A-F
 }
 
 
