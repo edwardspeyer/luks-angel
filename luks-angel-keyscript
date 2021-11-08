@@ -101,6 +101,8 @@ keyscript() {
 
   sleep 1
   read -p "$NAME: Please enter the password for $CRYPTTAB_NAME: " password
+  echo >&2 ''
+  log "Sending password to cryptsetup..."
   kill $BACKGROUND_PID 2>/dev/null
   echo -n $password
 }
