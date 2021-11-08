@@ -145,6 +145,16 @@ install() {
   fi
 
   for_each_key install_key /dev/$cursor
+
+  read -p \
+    "$NAME: install to /usr/lib/cryptsetup and update initramdisks? [Y/n] " \
+    answer
+  case "$answer" in
+    y*|Y*|'')
+      /usr/bin/install $0 /usr/lib/cryptsetup/scripts/luks-angel
+      update-initramfs -k all -u
+      ;;
+  esac
 }
 
 root_filesystem_device() {
