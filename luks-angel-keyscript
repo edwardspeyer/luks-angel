@@ -130,6 +130,18 @@ install() {
     exit 2
   fi
 
+  # Install script
+  read -p \
+    "$NAME: copy script to /usr/lib/cryptsetup and update initramdisks? [Y/n] " \
+    answer
+  case "$answer" in
+    y*|Y*|'')
+      /usr/bin/install $0 /usr/lib/cryptsetup/scripts/luks-angel
+      update-initramfs -k all -u
+      ;;
+  esac
+
+  # Install keys
   local rootfs=$(root_filesystem_device)
   local cursor="$rootfs"
 
@@ -147,17 +159,8 @@ install() {
     log "Unable to find crypto_LUKS parent of $rootfs"
   fi
 
+  log "Searching for attached USB keys and adding them to $cursor"
   for_each_key install_key /dev/$cursor
-
-  read -p \
-    "$NAME: install to /usr/lib/cryptsetup and update initramdisks? [Y/n] " \
-    answer
-  case "$answer" in
-    y*|Y*|'')
-      /usr/bin/install $0 /usr/lib/cryptsetup/scripts/luks-angel
-      update-initramfs -k all -u
-      ;;
-  esac
 }
 
 root_filesystem_device() {
