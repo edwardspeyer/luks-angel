@@ -41,6 +41,7 @@ find_uuid() {
   done
 }
 
+
 for_each_key() {
   for dev in /dev/disk/by-id/usb-*
   do
@@ -111,6 +112,7 @@ keyscript() {
   echo -n $password
 }
 
+
 read_password() {
   password=''
   saved=$(stty -g)
@@ -127,6 +129,7 @@ read_password() {
   stty "$saved"
   echo "$password"
 }
+
 
 list_keys() {
   echo "FINGERPRINT  DEVICE and PATH"
@@ -180,6 +183,7 @@ install() {
   for_each_key install_key /dev/$cursor
 }
 
+
 root_filesystem_device() {
   while read device mountpoint _
   do
@@ -190,6 +194,7 @@ root_filesystem_device() {
     fi
   done </proc/mounts
 }
+
 
 parent_device() {
   lsblk --list -o PATH,KNAME,PKNAME |
@@ -203,9 +208,11 @@ parent_device() {
     done
 }
 
+
 is_crypto_luks() {
   [ "$(fstype $1)" = 'crypto_LUKS' ]
 }
+
 
 fstype() {
   lsblk --list -o KNAME,FSTYPE |
@@ -240,6 +247,7 @@ usage: $NAME [options]
   -h  help message
 ...
 }
+
 
 set -e
 
