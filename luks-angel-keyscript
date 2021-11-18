@@ -103,13 +103,30 @@ keyscript() {
   BACKGROUND_PID=$!
 
   sleep 1
-  read -p "$NAME: Please enter the password for $CRYPTTAB_NAME: " password
-  echo >&2 ''
+  echo >&2 -n "$NAME: Please enter the password for $CRYPTTAB_NAME: "
+  password=$(read_password)
+
   log "Sending password to cryptsetup..."
   kill $BACKGROUND_PID 2>/dev/null
   echo -n $password
 }
 
+read_password() {
+  password=''
+  saved=$(stty -g)
+  stty -icanon time 0 min 1  # no-timeout, 1 char at a time
+  stty -echo
+  while true
+  do
+    char=$(dd bs=1 count=1 status=none)
+    [ -z "$char" ] && break
+    echo >&2 -n '*'
+    password="${password}${char}"
+  done
+  echo >&2
+  stty "$saved"
+  echo "$password"
+}
 
 list_keys() {
   echo "FINGERPRINT  DEVICE and PATH"
