@@ -16,10 +16,6 @@ cleanup() {
 }
 
 
-trap cleanup EXIT
-trap cleanup INT
-
-
 log() {
   echo >&2 "$NAME: $*"
 }
@@ -248,6 +244,9 @@ usage: $NAME [options]
 ...
 }
 
+
+trap cleanup EXIT
+trap cleanup INT
 
 set -e
 
