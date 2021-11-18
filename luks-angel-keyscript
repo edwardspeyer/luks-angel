@@ -77,6 +77,9 @@ unlock_with_key() {
     return
   fi
 
+  # Newline after the password prompt
+  echo >&2 ''
+
   log "Trying new key with fingerprint $fingerprint found on $dev"
   touch $stamp
   cat $key
